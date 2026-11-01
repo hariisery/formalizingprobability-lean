@@ -686,5 +686,50 @@ lemma good_add_bad (hqp : q < p) (hp : 0 < p) :
     have := possibilityspace_length p q
     omega
 
+/-! ### Step 6. Divide good paths by all paths
+With equal weights on every path, the probability is `good / total = (p - q) / (p + q)`.
+-/
+
+private lemma sum_const (P : List Int → ℝ) (c : ℝ) :
+  ∀ xs : List (List Int), (∀ l ∈ xs, P l = c) → (xs.map P).sum = xs.length * c
+  | [], _ => by simp
+  | a :: xs, h => by
+    have ha := h a (by simp)
+    have hxs := sum_const P c xs (fun l hl => h l (by simp [hl]))
+    simp only [List.map_cons, List.sum_cons, List.length_cons, ha, hxs]
+    push_cast; ring
+
+/-- The Ballot Theorem -/
+theorem ballot_theorem (P : List Int → ℝ) (hqp : q < p)
+  (hunif : is_unif p q P) (hnorm : ((possibilityspace p q).map P).sum = 1) :
+  probability p q P = (p - q : ℝ) / (p + q : ℝ) := by
+  have hp : 0 < p := by omega
+  have hN : ((p + q).choose p : ℝ) ≠ 0 :=
+    Nat.cast_ne_zero.mpr (Nat.choose_pos (Nat.le_add_right p q)).ne'
+  have hpq : (p : ℝ) + q ≠ 0 := by exact_mod_cast (by omega : p+q ≠ 0)
+  have hP : ∀ l ∈ possibilityspace p q, P l = 1 / ((p + q).choose p : ℝ) := by
+    intro l hl
+    have h := sum_const P (P l) (possibilityspace p q) (fun l' hl' => hunif l' hl' l hl)
+    rw [hnorm, possibilityspace_length] at h
+    rw [eq_div_iff hN]
+    linarith
+  have key : (p + q - 1).choose p * (p + q) = (p + q).choose p * q := by
+    obtain ⟨n, hn⟩ : ∃ n, p + q = n + 1 := ⟨p + q - 1, by omega⟩
+    have := Nat.choose_mul_succ_eq n p
+    rw [show n + 1 - p = q by omega] at this
+    rw [hn, Nat.add_sub_cancel]
+    exact this
+  have key' : ((p + q - 1).choose p : ℝ) * ((p : ℝ) + q)
+      = ((p + q).choose p : ℝ) * q := by exact_mod_cast key
+  have hg : ((good_paths p q).length : ℝ) + 2 * ((p + q - 1).choose p : ℝ)
+      = ((p + q).choose p : ℝ) := by exact_mod_cast good_add_bad p q hqp hp
+  have hmain : ((good_paths p q).length : ℝ) * ((p : ℝ) + q)
+      = ((p + q).choose p : ℝ) * ((p : ℝ) - q) := by
+    linear_combination ((p : ℝ) + q) * hg - 2 * key'
+  unfold probability
+  rw [sum_const P (1 / ((p + q).choose p : ℝ)) (good_paths p q)
+  (fun l hl => hP l (List.mem_filter.mp hl).1)]
+  field_simp
+  linarith [hmain]
 
 end BallotReflection
