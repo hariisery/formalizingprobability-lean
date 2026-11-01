@@ -11,4 +11,4 @@ proof in Lean. It shows the idea behind the argument.
 
 ![Notes](MyProject/notes.png)
 
-The Lean syntax was written with AI assistance.
+The Bulky Sections of Lean syntax was written with AI assistance.
