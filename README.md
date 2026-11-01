@@ -9,6 +9,6 @@ remaining good paths to obtain the probability.
 This is the original six-step plan I wrote on paper before formalizing the
 proof in Lean. It shows the idea behind the argument.
 
-![Notes] (notes.png)
+![Notes](MyProject/notes.png)
 
 The Lean syntax was written with AI assistance.
