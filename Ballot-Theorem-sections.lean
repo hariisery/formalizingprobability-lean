@@ -268,5 +268,259 @@ lemma bad_split : (bad_paths p q).length =
   rw [hfilters] at hperm
   simpa [bad_paths_fstep_1] using hperm.length_eq.symm
 
+/-! ### Step 3. Follow the running total until it first hits 0, then flip
+A bad path touches 0 (`crosses_zero`, `returns_origin`, `hit_down`, `hit_of_bad`).
+`reflectPath` flips every step up to the first touch of 0; flipping twice gives the path back.
+-/
+
+lemma crosses_zero (xs : List Int) (s : Int)
+    (hs : s < 0)
+    (hfinal : 0 < s + xs.sum)
+    (hsteps : ∀ x ∈ xs, x = 1 ∨ x = -1) :
+    ∃ n ≤ xs.length, s + (xs.take n).sum = 0 := by
+    induction xs generalizing s with
+    | nil =>
+    simp at hfinal
+    omega
+    | cons x xs ih =>
+    have hx : x = 1 ∨ x = -1 := hsteps x (by simp)
+    by_cases hz : s + x = 0
+    · use 1; simp[hz]
+    · have hst : ∀ x ∈ xs, x = 1 ∨ x = -1 := fun x hu => hsteps x (by simp [hu])
+      have hsn : s + x < 0 := by
+        rcases hx with rfl | rfl <;> omega
+      have hfinal' : 0 < s + (x + xs.sum) := by simpa using hfinal
+      have hfn : 0 < (s + x) + xs.sum := by omega
+      obtain ⟨n, hn1, hn2⟩ := ih (s + x) hsn hfn hst
+      use n+1; simp [hn1]; omega
+
+theorem returns_origin (path : List Int)
+    (hpath : path ∈ bad_paths_fstep_neg1 p q)
+    (hqp : q < p) :
+    ∃ n, 0 < n ∧ Sₘ n path = 0 := by
+  have hposs : path ∈ possibilityspace p q :=
+    (List.mem_filter.mp (List.mem_filter.mp hpath).1).1
+  have hstart : path.head? = some (-1 : Int) := by
+    simpa using (List.mem_filter.mp hpath).2
+  obtain ⟨-, hsteps, hsum⟩ := ps_props p q hposs
+  have hfinal : 0 < path.sum := by rw [hsum]; omega
+  cases path with
+  | nil => simp at hstart
+  | cons first rest =>
+    have hfirst : first = -1 := by simpa using hstart
+    subst first
+    have hfinal' : 0 < (-1 : Int) + rest.sum := by simpa using hfinal
+    have hsteps' : ∀ x ∈ rest, x = 1 ∨ x = -1 := by
+      intro x hx
+      exact hsteps x (by simp [hx])
+    obtain ⟨n, hnlen, hnzero⟩ :=
+      crosses_zero rest (-1) (by decide) hfinal' hsteps'
+    refine ⟨n + 1, by omega, ?_⟩
+    simpa [Sₘ] using hnzero
+
+lemma condn_false_of_head {l : List Int} (hhead : l.head? = some (-1))
+    (hpq : 1 ≤ p + q) : condn p q l = false := by
+  cases l with
+  | nil => simp at hhead
+  | cons a t =>
+      have ha : a = -1 := by simpa using hhead
+      subst a
+      rw [Bool.eq_false_iff]
+      intro hcond
+      unfold condn at hcond
+      rw [List.all_eq_true] at hcond
+      have hstep := hcond 1 (List.mem_range.mpr (by omega))
+      simp [Sₘ] at hstep
+
+lemma exists_nonpos_prefix {l : List Int} (hc : condn p q l = false) :
+    ∃ n, 0 < n ∧ n ≤ p + q ∧ (l.take n).sum ≤ 0 := by
+  by_contra hno
+  have hno' : ∀ n, 0 < n → n ≤ p + q → 0 < (l.take n).sum := by
+    intro n hn hle
+    by_contra hsum
+    exact hno ⟨n, hn, hle, by omega⟩
+  have hall : (List.range (p + q + 1)).all (fun step =>
+      if step > 0 then Sₘ step l > 0 else true) = true := by
+    rw [List.all_eq_true]
+    intro step hstep
+    have hstep' := List.mem_range.mp hstep
+    by_cases hpos : 0 < step
+    · have hsum := hno' step hpos (by omega)
+      simpa [Sₘ, hpos] using hsum
+    · simp [hpos]
+  have htrue : condn p q l = true := by
+    simpa [condn] using hall
+  rw [htrue] at hc
+  cases hc
+
+lemma hit_down (xs : List Int) : ∀ (s : Int) (n : ℕ), 0 < s →
+    (∀ x ∈ xs, x = 1 ∨ x = -1) → s + (xs.take n).sum ≤ 0 →
+    ∃ k, 0 < k ∧ k ≤ xs.length ∧ s + (xs.take k).sum = 0 := by
+  induction xs with
+  | nil =>
+      intro s n hs _ h
+      simp at h
+      omega
+  | cons x xs ih =>
+      intro s n hs hx h
+      have hx' := hx x (by simp)
+      cases n with
+      | zero =>
+          simp at h
+          omega
+      | succ n =>
+          simp only [List.take_succ_cons, List.sum_cons] at h
+          by_cases hz : s + x = 0
+          · refine ⟨1, by omega, by simp, ?_⟩
+            simpa using hz
+          · have hpos : 0 < s + x := by
+              rcases hx' with h' | h' <;> omega
+            obtain ⟨k, hk0, hkle, hk⟩ :=
+              ih (s + x) n hpos (fun y hy => hx y (by simp [hy])) (by omega)
+            refine ⟨k + 1, by omega, ?_, ?_⟩
+            · simp only [List.length_cons]
+              omega
+            · simpa [List.take_succ_cons, List.sum_cons, Int.add_assoc] using hk
+
+lemma hit_of_bad (l : List Int) (h1 : ∀ x ∈ l, x = 1 ∨ x = -1) (hhead : l.head? = some 1)
+    (n : ℕ) (hn : 0 < n) (hle : (l.take n).sum ≤ 0) :
+    ∃ k, 0 < k ∧ k ≤ l.length ∧ (l.take k).sum = 0 := by
+  cases l with
+  | nil => simp at hhead
+  | cons a t =>
+      have ha : a = 1 := by simpa using hhead
+      subst a
+      obtain ⟨n', rfl⟩ : ∃ n', n = n' + 1 := ⟨n - 1, by omega⟩
+      have hle' : 1 + (t.take n').sum ≤ 0 := by
+        simpa [List.take_succ_cons, List.sum_cons] using hle
+      obtain ⟨k, hk0, hkle, hk⟩ :=
+        hit_down t 1 n' (by omega) (fun x hx => h1 x (by simp [hx])) (by omega)
+      refine ⟨k + 1, by omega, ?_, ?_⟩
+      · simp only [List.length_cons]
+        omega
+      · simpa [List.take_succ_cons, List.sum_cons] using hk
+
+def reflAux (s : Int) : List Int → List Int
+  | [] => []
+  | x :: xs =>
+      if s + x = 0 then -x :: xs else -x :: reflAux (s + x) xs
+
+def reflectPath (l : List Int) : List Int :=
+  reflAux 0 l
+
+def refl_bad_paths_fstep_neg1 : List (List Int) :=
+  (bad_paths_fstep_neg1 p q).map reflectPath
+
+lemma sum_map_neg (l : List Int) : (l.map (fun x => -x)).sum = -l.sum := by
+    induction l with
+    | nil => simp
+    | cons a l ih =>
+        simp only [List.map_cons, List.sum_cons, ih]
+        omega
+
+lemma reflAux_hit : ∀ (xs : List Int) (s : Int),
+    (∃ n, 0 < n ∧ n ≤ xs.length ∧ s + (xs.take n).sum = 0) →
+    ∃ k, 0 < k ∧ k ≤ xs.length ∧ s + (xs.take k).sum = 0 ∧
+      reflAux s xs = (xs.take k).map (fun x => -x) ++ xs.drop k := by
+  intro xs
+  induction xs with
+  | nil =>
+      intro s h
+      rcases h with ⟨n, hn, hle, hsum⟩
+      simp at hle
+      omega
+  | cons x xs ih =>
+      intro s h
+      rcases h with ⟨n, hn, hle, hsum⟩
+      by_cases hz : s + x = 0
+      · refine ⟨1, by omega, by simp, ?_, ?_⟩
+        · simp
+          simpa using hz
+        · simp [reflAux, hz]
+      · obtain ⟨n', rfl⟩ : ∃ n', n = n' + 1 := ⟨n - 1, by omega⟩
+        have hsum' : (s + x) + (xs.take n').sum = 0 := by
+          have hsum'' : s + (x + (xs.take n').sum) = 0 := by
+            simpa [List.take_succ_cons, List.sum_cons] using hsum
+          omega
+        have hn' : 0 < n' := by
+          by_contra hn0
+          have : n' = 0 := by omega
+          subst n'
+          simp at hsum'
+          exact hz (by omega)
+        have hle' : n' ≤ xs.length := by
+          simp only [List.length_cons] at hle
+          omega
+        obtain ⟨k, hk0, hkle, hksum, hkeq⟩ :=
+          ih (s + x) ⟨n', hn', hle', hsum'⟩
+        refine ⟨k + 1, by omega, ?_, ?_, ?_⟩
+        · simp only [List.length_cons]
+          omega
+        · simpa [List.take_succ_cons, List.sum_cons, Int.add_assoc] using hksum
+        · simp [reflAux, hz, hkeq, List.take_succ_cons, List.drop_succ_cons]
+
+lemma reflAux_invol (s : Int) (xs : List Int) :
+    reflAux (-s) (reflAux s xs) = xs := by
+  induction xs generalizing s with
+  | nil => simp [reflAux]
+  | cons x xs ih =>
+      by_cases hz : s + x = 0
+      · have hzero : (-s) + (-x) = 0 := by omega
+        simp [reflAux, hz, hzero]
+      · have hfirst : reflAux s (x :: xs) = -x :: reflAux (s + x) xs := by
+          simp [reflAux, hz]
+        have hne : (-s) + (-x) ≠ 0 := by omega
+        have hstate : (-s) + (-x) = -(s + x) := by omega
+        calc
+          reflAux (-s) (reflAux s (x :: xs))
+              = reflAux (-s) (-x :: reflAux (s + x) xs) := by rw [hfirst]
+          _ = x :: reflAux ((-s) + (-x)) (reflAux (s + x) xs) := by
+                simp [reflAux, hne]
+          _ = x :: reflAux (-(s + x)) (reflAux (s + x) xs) := by rw [hstate]
+          _ = x :: xs := by rw [ih]
+
+lemma reflectPath_invol (xs : List Int) : reflectPath (reflectPath xs) = xs := by
+  simpa [reflectPath] using reflAux_invol 0 xs
+
+lemma refl_head {l : List Int} {a : Int} (hs : l.head? = some a) (ha : a ≠ 0) :
+    (reflectPath l).head? = some (-a) := by
+  cases l with
+  | nil => simp at hs
+  | cons b t =>
+      have hb : b = a := by simpa using hs
+      subst b
+      simp [reflectPath, reflAux, ha]
+
+lemma refl_facts (m : List Int) (h1 : ∀ x ∈ m, x = 1 ∨ x = -1)
+    (hit : ∃ n, 0 < n ∧ n ≤ m.length ∧ (m.take n).sum = 0) :
+    (reflectPath m).length = m.length ∧ (∀ x ∈ reflectPath m, x = 1 ∨ x = -1) ∧
+      (reflectPath m).sum = m.sum ∧
+      ∃ k, 0 < k ∧ k ≤ m.length ∧ ((reflectPath m).take k).sum = 0 := by
+  obtain ⟨k, hk0, hkle, hks, hke⟩ := reflAux_hit m 0 (by simpa using hit)
+  have hke' : reflectPath m = (m.take k).map (fun x => -x) ++ m.drop k := hke
+  have hks' : (m.take k).sum = 0 := by simpa using hks
+  refine ⟨?_, ?_, ?_, k, hk0, hkle, ?_⟩
+  · rw [hke']
+    simp only [List.length_append, List.length_map, List.length_take, List.length_drop]
+    omega
+  · intro x hx
+    rw [hke'] at hx
+    rcases List.mem_append.mp hx with hx | hx
+    · obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hx
+      rcases h1 y (List.mem_of_mem_take hy) with h | h <;> simp [h]
+    · exact h1 x (List.mem_of_mem_drop hx)
+  · rw [hke', List.sum_append, sum_map_neg]
+    have hsum : (m.take k).sum + (m.drop k).sum = m.sum := by
+      rw [← List.sum_append, List.take_append_drop]
+    omega
+  · have htl : List.take k ((m.take k).map (fun x => -x) ++ m.drop k)
+        = (m.take k).map (fun x => -x) :=
+      List.take_left' (by simp [Nat.min_eq_left hkle])
+    have hs0 : ((m.take k).map (fun x => -x)).sum = 0 := by
+      rw [sum_map_neg]
+      omega
+    rw [hke', htl]
+    exact hs0
+
 
 end BallotReflection
