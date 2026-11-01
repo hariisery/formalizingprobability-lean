@@ -607,5 +607,84 @@ lemma bad_1_length (hpq : q < p) :
     rw [← (refl_perm p q hpq).length_eq]
     simp [refl_bad_paths_fstep_neg1]
 
+/-! ### Step 5. Count the `-1`-start paths and subtract them twice
+There are `C(p+q-1, p)` paths starting with `-1`, all of them bad.
+good paths = all paths - 2 * (bad paths starting with `-1`).
+-/
+
+lemma neg1_count (m n k : ℕ) (hm : m = n + 1) :
+(((List.sublistsLen k (List.finRange m)).map
+(fun pos => (List.finRange m).map
+(fun i => if i ∈ pos then (1 : Int) else -1))).filter
+(fun l => l.head? == some (-1))).length = n.choose k := by
+  subst hm
+  have hfr : List.finRange (n + 1) = 0 :: (List.finRange n).map Fin.succ := by
+    exact List.finRange_succ
+  have hpred : ∀ pos : List (Fin (n + 1)),
+    (((List.finRange (n + 1)).map
+    (fun i => if i ∈ pos then (1 : Int) else -1)).head? == some (-1))
+    = decide ((0 : Fin (n + 1)) ∉ pos) := by
+    intro pos
+    rw [hfr]
+    by_cases h : (0 : Fin (n + 1)) ∈ pos <;> simp [h]
+  simp only [List.filter_map, List.length_map, Function.comp_def, hpred]
+  rw [hfr]
+  rcases k with _ | k
+  · simp
+  · have hA : List.filter (fun x => decide ((0 : Fin (n + 1)) ∉ x))
+      (List.sublistsLen (k + 1) ((List.finRange n).map Fin.succ))
+      = List.sublistsLen (k + 1) ((List.finRange n).map Fin.succ) := by
+      apply List.filter_eq_self.mpr
+      intro pos hpos
+      have hsub := (List.mem_sublistsLen.mp hpos).1
+      have h0 : (0 : Fin (n + 1)) ∉ pos := by
+        intro h0
+        have hmem := hsub.subset h0
+        simp at hmem
+      simp [h0]
+    have hB : List.filter (fun x => decide ((0 : Fin (n + 1)) ∉ x))
+      ((List.sublistsLen k ((List.finRange n).map Fin.succ)).map (List.cons 0)) = [] := by
+      apply List.filter_eq_nil_iff.mpr
+      intro pos hpos
+      obtain ⟨s, _, rfl⟩ := List.mem_map.mp hpos
+      simp
+    rw [List.sublistsLen_succ_cons]
+    simp only [List.filter_append, List.length_append]
+    rw [hA, hB]
+    simp [List.length_sublistsLen]
+
+lemma bad_neg1_length (hqp : q < p) (hp : 0 < p) :
+(bad_paths_fstep_neg1 p q).length = (p + q - 1).choose p := by
+  have hfilt : bad_paths_fstep_neg1 p q =
+      (possibilityspace p q).filter (fun l => l.head? == some (-1)) := by
+    unfold bad_paths_fstep_neg1 bad_paths
+    rw [List.filter_filter]
+    apply List.filter_congr
+    intro l _
+    by_cases h : l.head? = some (-1)
+    · cases l with
+      | nil => simp at h
+      | cons a t =>
+        have ha : a = -1 := by simpa using h
+        subst a
+        have hc := condn_false_of_head p q h (by omega)
+        simp [h, hc]
+    · have hb : (l.head? == some (-1)) = false := by simpa using h
+      simp [hb]
+  rw [hfilt]
+  exact neg1_count (p + q) (p + q - 1) p (by omega)
+
+lemma good_add_bad (hqp : q < p) (hp : 0 < p) :
+    (good_paths p q).length + 2 * (p + q - 1).choose p = (p + q).choose p := by
+    have h : (good_paths p q).length + (bad_paths p q).length
+    = (possibilityspace p q).length := by
+      simpa [good_paths, bad_paths] using
+    (List.filter_append_perm (condn p q) (possibilityspace p q)).length_eq
+    have := bad_split p q
+    have := bad_1_length p q hqp
+    have := bad_neg1_length p q hqp hp
+    have := possibilityspace_length p q
+    omega
+
 
 end BallotReflection
