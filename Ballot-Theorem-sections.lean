@@ -522,5 +522,90 @@ lemma refl_facts (m : List Int) (h1 : ∀ x ∈ m, x = 1 ∨ x = -1)
     rw [hke', htl]
     exact hs0
 
+/-! ### Step 4. The flip is a bijection between the two groups of bad paths
+Flipping sends bad paths starting with `-1` to bad paths starting with `1`, and back,
+so the two groups have the same size.
+-/
+
+lemma refl_mem_one (hqp : q < p) {m : List Int} (hm : m ∈ bad_paths_fstep_neg1 p q) :
+  reflectPath m ∈ bad_paths_fstep_1 p q := by
+  obtain ⟨hbad, hhead⟩ := List.mem_filter.mp hm
+  have hps : m ∈ possibilityspace p q := (List.mem_filter.mp hbad).1
+  have hs : m.head? = some (-1) := by simpa using hhead
+  obtain ⟨hlen, h1, hsum⟩ := ps_props p q hps
+  obtain ⟨n, hn0, hn⟩ := returns_origin p q m hm hqp
+  have hn' : n ≤ m.length := by
+    by_contra hgt
+    have hlt : m.length < n := by omega
+    have htk : m.take n = m := List.take_of_length_le (Nat.le_of_lt hlt)
+    have hsum_zero : m.sum = 0 := by
+      simpa [Sₘ, htk] using hn
+    rw [hsum] at hsum_zero
+    omega
+  obtain ⟨hlen', h1', hsum', k, hk0, hkle, hSk⟩ :=
+    refl_facts m h1 ⟨n, hn0, hn', by simpa [Sₘ] using hn⟩
+  have hps' : reflectPath m ∈ possibilityspace p q :=
+    ps_of_props p q (by omega) h1' (by omega)
+  have hcf : condn p q (reflectPath m) = false := by
+    rw [Bool.eq_false_iff]
+    intro hc
+    unfold condn at hc
+    rw [List.all_eq_true] at hc
+    have hstep := hc k (List.mem_range.mpr (by omega))
+    simp [Sₘ, hSk, hk0] at hstep
+  unfold bad_paths_fstep_1 bad_paths
+  simp only [List.mem_filter]
+  refine ⟨⟨hps', ?_⟩, ?_⟩
+  · simp [hcf]
+  · simpa using refl_head hs (by decide)
+
+lemma refl_mem_neg (hqp : q < p) {l : List Int} (hl : l ∈ bad_paths_fstep_1 p q) :
+  reflectPath l ∈ bad_paths_fstep_neg1 p q := by
+  obtain ⟨hbad, hhead⟩ := List.mem_filter.mp hl
+  have hps : l ∈ possibilityspace p q := (List.mem_filter.mp hbad).1
+  have hnc : condn p q l = false := by simpa using (List.mem_filter.mp hbad).2
+  have hs : l.head? = some 1 := by simpa using hhead
+  obtain ⟨hlen, h1, hsum⟩ := ps_props p q hps
+  obtain ⟨n, hn0, -, hn⟩ := exists_nonpos_prefix p q hnc
+  obtain ⟨k, hk0, hkle, hk⟩ := hit_of_bad l h1 hs n hn0 hn
+  obtain ⟨hlen', h1', hsum', -⟩ := refl_facts l h1 ⟨k, hk0, hkle, hk⟩
+  have hps' : reflectPath l ∈ possibilityspace p q :=
+    ps_of_props p q (by omega) h1' (by omega)
+  have hs' : (reflectPath l).head? = some (-1) := by
+    simpa using refl_head hs (by decide)
+  unfold bad_paths_fstep_neg1 bad_paths
+  simp only [List.mem_filter]
+  refine ⟨⟨hps', ?_⟩, ?_⟩
+  · simp [condn_false_of_head p q hs' (by omega)]
+  · simpa using hs'
+
+lemma refl_perm (hqp : q < p) :
+  (refl_bad_paths_fstep_neg1 p q).Perm (bad_paths_fstep_1 p q) := by
+  unfold refl_bad_paths_fstep_neg1
+  have hnd0 : (possibilityspace p q).Nodup := possibilityspace_nodup p q
+  have hnd_neg : (bad_paths_fstep_neg1 p q).Nodup := by
+    unfold bad_paths_fstep_neg1 bad_paths
+    exact (hnd0.filter _).filter _
+  have hnd_one : (bad_paths_fstep_1 p q).Nodup := by
+    unfold bad_paths_fstep_1 bad_paths
+    exact (hnd0.filter _).filter _
+  have hinj : Function.Injective reflectPath :=
+    Function.LeftInverse.injective reflectPath_invol
+  refine (List.perm_ext_iff_of_nodup (hnd_neg.map hinj) hnd_one).2 ?_
+  intro l
+  constructor
+  · intro hl
+    obtain ⟨m, hm, hml⟩ := List.mem_map.mp hl
+    rw [← hml]
+    exact refl_mem_one p q hqp hm
+  · intro hl
+    exact List.mem_map.mpr
+      ⟨reflectPath l, refl_mem_neg p q hqp hl, reflectPath_invol l⟩
+
+lemma bad_1_length (hpq : q < p) :
+    (bad_paths_fstep_1 p q).length = (bad_paths_fstep_neg1 p q).length := by
+    rw [← (refl_perm p q hpq).length_eq]
+    simp [refl_bad_paths_fstep_neg1]
+
 
 end BallotReflection
