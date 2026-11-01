@@ -225,5 +225,48 @@ lemma ps_of_props {l : List Int} (hlen : l.length = p + q)
     · have h' : g i = -1 := (hg i).resolve_left h
       simp [h']
 
+/-! ### Step 2. Split the bad paths by their first step
+Every bad path starts with `1` or `-1`, and these two groups do not overlap.
+-/
+
+lemma bad_split : (bad_paths p q).length =
+  (bad_paths_fstep_1 p q).length + (bad_paths_fstep_neg1 p q).length := by
+  have hheads : ∀ path ∈ bad_paths p q,
+      path.head? = some (1 : Int) ∨ path.head? = some (-1 : Int) := by
+    intro path hpath
+    have hcond : condn p q path = false := by
+      have h := (List.mem_filter.mp hpath).2
+      simpa using h
+    have hposs := (List.mem_filter.mp hpath).1
+    rcases (by simpa [possibilityspace] using hposs) with ⟨positions, _, rfl⟩
+    by_cases hzero : p + q = 0
+    · have hp : p = 0 := by omega
+      have hq : q = 0 := by omega
+      subst p
+      subst q
+      simp [condn] at hcond
+    · have hhead : (List.finRange (p + q)).head? ≠ none := by
+        intro hnil
+        have hnil' : List.finRange (p + q) = [] := List.head?_eq_none_iff.mp hnil
+        have : (List.finRange (p + q)).length = 0 := by simp [hnil']
+        simp only [List.length_finRange] at this
+        omega
+      cases hfirst : (List.finRange (p + q)).head? with
+      | none => exact (hhead hfirst).elim
+      | some i =>
+        rw [List.head?_map, hfirst]
+        by_cases hi : i ∈ positions <;> simp [hi]
+  have hfilters :
+      List.filter (fun path : List Int => !(path.head? == some (1 : Int))) (bad_paths p q)
+        = bad_paths_fstep_neg1 p q := by
+    unfold bad_paths_fstep_neg1
+    apply List.filter_congr
+    intro path hpath
+    rcases hheads path hpath with h | h <;> simp [h]
+  have hperm := List.filter_append_perm
+    (fun path : List Int => path.head? == some (1 : Int)) (bad_paths p q)
+  rw [hfilters] at hperm
+  simpa [bad_paths_fstep_1] using hperm.length_eq.symm
+
 
 end BallotReflection
