@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use or reference this formalization, please cite it as below."
+authors:
+  - family-names: "Sery"
+    given-names: "Harii"
+title: "Formalization of Bertrand's Ballot Theorem in Lean 4 via André's Reflection Principle"
+version: 1.0.0
+date-released: 2026-11-12
+license: Apache-2.0
+url: "https://github.com/hariisery/formalizingprobability-lean"
