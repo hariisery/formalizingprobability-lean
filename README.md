@@ -1,5 +1,7 @@
 # formalizingprobability-lean
 
+[![DOI](https://zenodo.org)](https://doi.org)
+
 ## Ballot theorem proof strategy
 
 The proof strategy is mine (*Rediscovered*): split bad paths by their first step, pair the two
