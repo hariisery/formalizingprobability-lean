@@ -1,6 +1,6 @@
 # formalizingprobability-lean
 
-[![DOI](https://zenodo.org)](https://doi.org)
+[![DOI](https://zenodo.org/badge/1435748628.svg)](https://doi.org/10.5281/zenodo.24170340)
 
 ## Ballot theorem proof strategy
 
